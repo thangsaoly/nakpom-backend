@@ -2,12 +2,59 @@ package com.nakpom.exception
 
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.MethodArgumentNotValidException
 import org.springframework.web.bind.annotation.ExceptionHandler
 import org.springframework.web.bind.annotation.RestControllerAdvice
 
 @RestControllerAdvice
 class GlobalExceptionHandler {
 
+    /**
+     * Handles Bean Validation errors from @Valid DTOs.
+     */
+    @ExceptionHandler(MethodArgumentNotValidException::class)
+    fun handleValidationException(ex: MethodArgumentNotValidException): ResponseEntity<Map<String, Any>> {
+        val errors = ex.bindingResult.fieldErrors.associate { it.field to (it.defaultMessage ?: "Invalid value") }
+        val response = mapOf(
+            "status" to HttpStatus.BAD_REQUEST.value(),
+            "error" to "Validation Failed",
+            "details" to errors,
+            "timestamp" to System.currentTimeMillis()
+        )
+        return ResponseEntity.badRequest().body(response)
+    }
+
+    /**
+     * Handles duplicate email registration attempts.
+     */
+    @ExceptionHandler(EmailAlreadyExistsException::class)
+    fun handleEmailAlreadyExists(ex: EmailAlreadyExistsException): ResponseEntity<Map<String, Any>> {
+        val response = mapOf(
+            "status" to HttpStatus.CONFLICT.value(),
+            "error" to "Email Already Exists",
+            "message" to (ex.message ?: "Email is already registered"),
+            "timestamp" to System.currentTimeMillis()
+        )
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response)
+    }
+
+    /**
+     * Handles invalid login credentials.
+     */
+    @ExceptionHandler(InvalidCredentialsException::class)
+    fun handleInvalidCredentials(ex: InvalidCredentialsException): ResponseEntity<Map<String, Any>> {
+        val response = mapOf(
+            "status" to HttpStatus.UNAUTHORIZED.value(),
+            "error" to "Authentication Failed",
+            "message" to (ex.message ?: "Invalid email or password"),
+            "timestamp" to System.currentTimeMillis()
+        )
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(response)
+    }
+
+    /**
+     * Catch-all handler for unexpected exceptions.
+     */
     @ExceptionHandler(Exception::class)
     fun handleException(ex: Exception): ResponseEntity<Map<String, Any>> {
         val response = mapOf(
