@@ -28,6 +28,9 @@ dependencies {
     implementation("com.mysql:mysql-connector-j")
     implementation("com.zaxxer:HikariCP")
     
+    // Password Hashing (BCrypt)
+    implementation("org.mindrot:jbcrypt:0.4")
+    
     // Flyway for migrations
     implementation("org.flywaydb:flyway-core")
     implementation("org.flywaydb:flyway-mysql")
