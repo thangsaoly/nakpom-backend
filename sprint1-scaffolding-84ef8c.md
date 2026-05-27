@@ -13,10 +13,10 @@ This plan walks through setting up a Spring Boot Kotlin backend with layered arc
 ## Step 1: Initialize Spring Boot Project
 
 ### 1.1 Create Project Structure
-Use Spring Initializr to generate base project:
+Create project manually with Gradle Kotlin DSL:
 - **Project**: Gradle - Kotlin
 - **Language**: Kotlin
-- **Spring Boot**: 3.2.x (latest stable)
+- **Spring Boot**: 3.2.5
 - **Dependencies**:
   - Spring Web
   - Spring Data JPA
@@ -24,6 +24,7 @@ Use Spring Initializr to generate base project:
   - Flyway
   - Validation
   - HikariCP (included with Spring Boot)
+- **Note**: Generate Gradle wrapper after creating build.gradle.kts
 
 ### 1.2 Create Layered Architecture Directory Structure
 ```
@@ -163,48 +164,71 @@ git commit -m "Initial Sprint 1 scaffolding: Spring Boot backend with layered ar
 - Add remote: `git remote add origin <URL>`
 - Push: `git push -u origin main`
 
-## Step 10: Verify Setup
+## Step 10: Generate Gradle Wrapper
 
-### 10.1 Build Project
+### 10.1 Install Gradle (if not installed)
+```bash
+sudo snap install gradle  # or
+sudo apt install gradle
+```
+
+### 10.2 Generate Gradle Wrapper
+```bash
+gradle wrapper --gradle-version 8.5
+```
+
+## Step 11: Verify Setup
+
+### 11.1 Build Project
 ```bash
 ./gradlew clean build
 ```
 
-### 10.2 Run Application
+### 11.2 Run Application
 ```bash
 ./gradlew bootRun
 ```
 
-### 10.3 Test Health Endpoint
+### 11.3 Test Health Endpoint
 ```bash
 curl http://localhost:8080/api/v1/health
 ```
 
-### 10.4 Verify Database
+### 11.4 Verify Database
 - Connect to MySQL
 - Check that tables were created
 - Verify foreign key constraints
 
-## Step 11: Team Alignment
+## Step 12: Team Alignment
 
-### 11.1 Backend Developer
+### 12.1 Backend Developer
 - Can test health endpoint
 - Knows where to add new controllers/services
 
-### 11.2 Database Developer
+### 12.2 Database Developer
 - Knows repository layer location
 - Can write new migrations in db/migration/
 
-### 11.3 Frontend Developer
+### 12.3 Frontend Developer
 - Has server endpoint: `http://localhost:8080`
 - Can configure networking library to point to local IP
 - API base URL: `http://<local-ip>:8080/api/v1`
 
 ## Success Criteria
-- [ ] Spring Boot application starts without errors
-- [ ] Health endpoint returns 200 OK
-- [ ] MySQL database has all 3 tables created
-- [ ] Foreign key constraints are working
-- [ ] .gitignore properly excludes sensitive files
-- [ ] Git repository is initialized and committed
-- [ ] Team members can run the application locally
+- [x] Spring Boot project structure created with layered architecture
+- [x] Database configuration in application.yml
+- [x] .env file created for sensitive data
+- [x] Flyway migration script created with all 3 tables
+- [x] JPA entity models implemented (User, Family, FamilyMembership)
+- [x] Repository layer implemented (UserRepository, FamilyRepository, FamilyMembershipRepository)
+- [x] Service layer placeholder created (AuthService)
+- [x] Controller layer created with health check endpoint
+- [x] .gitignore properly excludes sensitive files
+- [x] Git repository initialized and committed
+- [x] Gradle wrapper generated
+- [x] Spring Boot application builds successfully
+- [x] Spring Boot application starts without errors
+- [x] Health endpoint returns 200 OK
+- [x] MySQL database has all 3 tables created (verified)
+- [x] Foreign key constraints are working (verified)
+- [x] Team members can run the application locally
