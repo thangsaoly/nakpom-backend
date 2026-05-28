@@ -1,11 +1,14 @@
 spring:
+  config:
+    import: optional:file:.env[.properties]
+
   application:
     name: nakpom
   
   datasource:
     url: ${DB_URL:jdbc:mysql://localhost:3306/nakpom_db}
-    username: ${DB_USERNAME:}
-    password: ${DB_PASSWORD:}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
     driver-class-name: com.mysql.cj.jdbc.Driver
     hikari:
       maximum-pool-size: 10

@@ -68,22 +68,25 @@ class AuthService(
         )
         logger.info("Family created: id={}, inviteCode={}", family.familyId, family.inviteCode)
 
+        val userId = user.userId ?: error("Saved user is missing generated id")
+        val familyId = family.familyId ?: error("Saved family is missing generated id")
+
         // 6. Link user to family as owner
         familyMembershipRepository.save(
             FamilyMembership(
-                userId = user.userId!!,
-                familyId = family.familyId!!,
+                userId = userId,
+                familyId = familyId,
                 role = "owner"
             )
         )
-        logger.info("Membership created: userId={}, familyId={}, role=owner", user.userId, family.familyId)
+        logger.info("Membership created: userId={}, familyId={}, role=owner", userId, familyId)
 
         // 7. Return response
         return AuthResponse(
-            userId = user.userId,
+            userId = userId,
             email = user.email,
             fullName = user.fullName,
-            familyId = family.familyId,
+            familyId = familyId,
             familyName = family.familyName,
             inviteCode = family.inviteCode,
             message = "Registration successful. Your family space 'Krousa Me' has been created."
@@ -105,13 +108,15 @@ class AuthService(
 
         logger.info("User logged in: id={}, email={}", user.userId, user.email)
 
+        val userId = user.userId ?: throw InvalidCredentialsException()
+
         // Fetch user's primary family (first owned family)
-        val memberships = familyMembershipRepository.findByUserId(user.userId!!)
+        val memberships = familyMembershipRepository.findByUserId(userId)
         val primaryMembership = memberships.firstOrNull { it.role == "owner" } ?: memberships.firstOrNull()
         val family = primaryMembership?.let { familyRepository.findById(it.familyId).orElse(null) }
 
         return AuthResponse(
-            userId = user.userId,
+            userId = userId,
             email = user.email,
             fullName = user.fullName,
             familyId = family?.familyId,

@@ -74,6 +74,8 @@ Configure database connection in `src/main/resources/application.yml`:
 - HikariCP connection pool configuration
 - JPA/Hibernate settings
 - Flyway migration settings
+- Import local `.env` values with `spring.config.import=optional:file:.env[.properties]`; Spring Boot does not load `.env` automatically.
+- Keep `DB_USERNAME` and `DB_PASSWORD` required in `application.yml` instead of defaulting them to empty strings. Empty credentials can make the MySQL driver fall back to the operating-system username.
 
 #### 2.2 Create .env File (for sensitive data)
 ```env
@@ -107,6 +109,7 @@ Run application to trigger Flyway migrations automatically.
 - Fields: userId, email, passwordHash, fullName, createdAt
 - `@Table` annotation for custom table name
 - JPA annotations: `@Id`, `@GeneratedValue`, `@Column`, etc.
+- Kotlin JPA entities require generated no-arg constructors for Hibernate. Enable `kotlin("plugin.jpa")` in `build.gradle.kts` rather than adding manual placeholder constructors to every entity.
 
 #### 4.2 Create Family Entity
 - Fields: familyId, familyName, inviteCode, createdAt
@@ -120,6 +123,14 @@ Run application to trigger Flyway migrations automatically.
 #### 4.4 Create PasswordReset Entity
 - Fields: id, email, token, expiresAt
 - Unique constraint on token
+
+#### 4.5 Kotlin JPA Build Plugins
+Enable the Kotlin JPA and all-open plugins in `build.gradle.kts`:
+- `kotlin("plugin.jpa")` generates no-arg constructors for JPA entities.
+- `kotlin("plugin.allopen")` opens JPA entity classes/properties for Hibernate proxying.
+- Configure `allOpen` for `jakarta.persistence.Entity`, `jakarta.persistence.MappedSuperclass`, and `jakarta.persistence.Embeddable`.
+
+When entity id properties become open, avoid relying on Kotlin smart casts after `!!`. Store generated ids in local non-null variables before reusing them in service code.
 
 ### Step 5: Implement Repository Layer
 
@@ -324,6 +335,42 @@ curl -X POST http://localhost:8080/api/v1/auth/login \
 - API base URL: `http://<local-ip>:8080/api/v1`
 
 ---
+
+## Runtime Troubleshooting Notes
+
+### MySQL uses the wrong username
+Error:
+```text
+Access denied for user 'saoly'@'localhost' (using password: NO)
+```
+
+Cause:
+- `DB_USERNAME` and `DB_PASSWORD` were not loaded into Spring.
+- Spring Boot does not automatically read `.env`.
+- Empty datasource credentials can make MySQL Connector/J fall back to the local operating-system username.
+
+Fix:
+- Add `spring.config.import: optional:file:.env[.properties]` to `application.yml`.
+- Use required placeholders: `username: ${DB_USERNAME}` and `password: ${DB_PASSWORD}`.
+- Verify `.env` contains the intended database account, for example `DB_USERNAME=nakpom`.
+
+### Login fails with no default constructor
+Error:
+```text
+No default constructor for entity 'com.nakpom.features.auth.models.User'
+```
+
+Cause:
+- Hibernate must instantiate JPA entities when loading rows from MySQL.
+- Kotlin classes do not generate Java-style no-arg constructors by default.
+
+Fix:
+- Add `kotlin("plugin.jpa")` to generate no-arg constructors for JPA entities.
+- Add/configure `kotlin("plugin.allopen")` so Hibernate can proxy entity classes.
+- Store nullable generated ids such as `user.userId` in local non-null variables before reuse, because all-open entity properties cannot be smart-cast reliably.
+
+Verified result:
+- Registered user login returns HTTP `200` with `message: "Login successful"`.
 
 ## Success Criteria
 - [x] Spring Boot project structure created with layered architecture
