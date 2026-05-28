@@ -15,6 +15,7 @@ import org.mindrot.jbcrypt.BCrypt
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
+import java.security.SecureRandom
 
 @Service
 class AuthService(
@@ -23,6 +24,7 @@ class AuthService(
     private val familyMembershipRepository: FamilyMembershipRepository
 ) {
     private val logger = LoggerFactory.getLogger(AuthService::class.java)
+    private val secureRandom = SecureRandom()
 
     /**
      * Registers a new user and automatically creates a "Krousa Me" family space.
@@ -31,7 +33,7 @@ class AuthService(
      * 1. Validate email uniqueness
      * 2. Hash password with BCrypt
      * 3. Save User
-     * 4. Generate invite code (NP-XXXX)
+     * 4. Generate invite code (NP-XXXXXX)
      * 5. Create Family("Krousa Me")
      * 6. Create FamilyMembership(role = "owner")
      * 7. Return AuthResponse with family details
@@ -127,21 +129,25 @@ class AuthService(
     }
 
     /**
-     * Generates a unique invite code in the format NP-XXXX (alphanumeric).
+     * Generates a unique invite code in the format NP-XXXXXX (alphanumeric).
      * Retries if a collision is detected.
      */
     private fun generateUniqueInviteCode(): String {
-        val chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789" // Omits ambiguous chars: 0/O, 1/I
         var attempts = 0
         while (attempts < 10) {
-            val code = "NP-" + (1..4).map { chars.random() }.joinToString("")
+            val code = "NP-" + (1..INVITE_CODE_LENGTH)
+                .map { INVITE_CODE_CHARS[secureRandom.nextInt(INVITE_CODE_CHARS.length)] }
+                .joinToString("")
             if (!familyRepository.existsByInviteCode(code)) {
                 return code
             }
             attempts++
         }
-        // Fallback: longer code to avoid collision
-        val code = "NP-" + (1..6).map { chars.random() }.joinToString("")
-        return code
+        error("Unable to generate a unique invite code after $attempts attempts")
+    }
+
+    companion object {
+        private const val INVITE_CODE_LENGTH = 6
+        private const val INVITE_CODE_CHARS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
     }
 }
