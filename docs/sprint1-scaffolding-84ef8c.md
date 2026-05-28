@@ -276,60 +276,70 @@ Located in `docs/uml-diagrams.md` — four diagrams with detailed descriptions:
 - **Class Diagram**: Full static structure — entities, DTOs, repositories, services, controllers, and exception handlers with stereotypes and relationships
 - **Sequence Diagram**: Three scenarios — successful registration, successful login, and duplicate email failure — showing object interactions across all architectural layers
 
-### Step 14: Create README.md
+### Step 14: Create Database Documentation
+Located in `docs/database-schema.md`:
+- ER diagram with all 4 tables and relationships
+- Column-level specifications (types, constraints, descriptions) for each table
+- Index and foreign key inventory with rationale
+- Flyway migration registry (V1, V2)
+- HikariCP connection pool configuration explained
+- JPA entity ↔ table mapping reference
+- Security considerations (password storage, data isolation, credential handling)
+
+### Step 15: Create README.md
 - Quick start guide (prerequisites, clone, configure, build, run)
 - API endpoint documentation with curl examples
 - Project structure overview
 - Team guide (Backend Dev, DB Dev, Frontend Dev)
 
-### Step 15: Verify Setup
+### Step 16: Verify Setup
 
-#### 15.1 Build Project
+#### 16.1 Build Project
 ```bash
 ./gradlew clean build
 ```
 
-#### 15.2 Run Application
+#### 16.2 Run Application
 ```bash
 ./gradlew bootRun
 ```
 
-#### 15.3 Test Health Endpoint
+#### 16.3 Test Health Endpoint
 ```bash
 curl http://localhost:8080/api/v1/health
 ```
 
-#### 15.4 Test Registration
+#### 16.4 Test Registration
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/register \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"secure123","fullName":"Test User"}'
 ```
 
-#### 15.5 Test Login
+#### 16.5 Test Login
 ```bash
 curl -X POST http://localhost:8080/api/v1/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"test@example.com","password":"secure123"}'
 ```
 
-#### 15.6 Verify Database
+#### 16.6 Verify Database
 - Connect to MySQL
 - Check that all 4 tables were created (users, families, family_memberships, password_resets)
 - Verify foreign key constraints
 - Confirm auto-created "Krousa Me" family after registration
 
-### Step 16: Team Alignment
+### Step 17: Team Alignment
 
-#### 16.1 Backend Developer
+#### 17.1 Backend Developer
 - Can test health endpoint and auth endpoints
 - Knows where to add new controllers/services
 
-#### 16.2 Database Developer
+#### 17.2 Database Developer
 - Knows repository layer location
 - Can write new migrations in db/migration/
 
-#### 16.3 Frontend Developer
+#### 17.3 Frontend Developer
 - Has server endpoint: `http://localhost:8080`
 - Can configure networking library to point to local IP
 - API base URL: `http://<local-ip>:8080/api/v1`
@@ -390,6 +400,7 @@ Verified result:
 - [x] Gradle wrapper generated
 - [x] Spring Boot application builds successfully
 - [x] UML diagrams created (Use Case, Activity, Class, Sequence)
+- [x] Database documentation created (ER diagram, table specs, indexes, migrations, connection config)
 - [x] README.md with team onboarding and API docs
 - [x] MySQL database has all 4 tables created
 - [x] Foreign key constraints are working
