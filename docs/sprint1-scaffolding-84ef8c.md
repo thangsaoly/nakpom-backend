@@ -243,7 +243,7 @@ Transactional flow:
 1. Check email uniqueness → throw `EmailAlreadyExistsException` if taken
 2. Hash password with BCrypt (cost factor 12)
 3. Save `User` entity
-4. Generate unique invite code (format: `NP-XXXX`, alphanumeric, avoids ambiguous chars 0/O/1/I)
+4. Generate unique invite code (format: `NP-XXXXXX`, secure random uppercase alphanumeric). Six base-36 characters provide 2,176,782,336 possible codes, making invite codes harder to guess or brute-force than the original four-character format.
 5. Create `Family("Krousa Me")` with the generated invite code
 6. Create `FamilyMembership(userId, familyId, role="owner")`
 7. Return `AuthResponse` with user + family details
@@ -270,11 +270,11 @@ Flow:
 ## Part C: Documentation & Verification
 
 ### Step 13: Create UML Diagrams
-Located in `docs/uml-diagrams.md`:
-- **Use Case Diagram**: Register, Login, Auto-Create "Krousa Me", Generate Invite Code, Health Check
-- **Class Diagram**: All entities, DTOs, repositories, services, controllers, and exception handlers
-- **Sequence Diagram**: Full registration flow (Client → Controller → Service → Repositories → DB)
-- **ER Diagram**: users, families, family_memberships, password_resets with relationships
+Located in `docs/uml-diagrams.md` — four diagrams with detailed descriptions:
+- **Use Case Diagram**: 7 use cases (Register, Login, Auto-Create "Krousa Me", Generate Invite Code, Validate Credentials, Hash Password, Health Check) with actors, pre/post-conditions, and «include» relationships
+- **Activity Diagram**: Step-by-step flowcharts for Registration and Login flows showing decision gates, error paths, and transactional boundaries
+- **Class Diagram**: Full static structure — entities, DTOs, repositories, services, controllers, and exception handlers with stereotypes and relationships
+- **Sequence Diagram**: Three scenarios — successful registration, successful login, and duplicate email failure — showing object interactions across all architectural layers
 
 ### Step 14: Create README.md
 - Quick start guide (prerequisites, clone, configure, build, run)
@@ -389,7 +389,7 @@ Verified result:
 - [x] Git repository initialized and committed
 - [x] Gradle wrapper generated
 - [x] Spring Boot application builds successfully
-- [x] UML diagrams created (Use Case, Class, Sequence, ER)
+- [x] UML diagrams created (Use Case, Activity, Class, Sequence)
 - [x] README.md with team onboarding and API docs
 - [x] MySQL database has all 4 tables created
 - [x] Foreign key constraints are working
