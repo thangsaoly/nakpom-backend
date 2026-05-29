@@ -10,6 +10,7 @@ This plan covers the complete Sprint 1 scope: project scaffolding, environment s
 - **ORM**: Spring Data JPA with Hibernate
 - **Migration**: Flyway (for schema versioning)
 - **Password Hashing**: BCrypt (org.mindrot:jbcrypt)
+- **Email**: Resend Java SDK `com.resend:resend-java:3.1.0` (REST API, no SMTP config needed)
 
 ---
 
@@ -45,7 +46,8 @@ src/main/kotlin/com/nakpom/
 │       │   ├── AuthController.kt     # Auth endpoints (register, login)
 │       │   └── HealthController.kt   # Health check endpoint
 │       ├── service/
-│       │   └── AuthService.kt        # Business logic (register, login, Krousa Me hook)
+│       │   ├── AuthService.kt        # Business logic (register, login, Krousa Me hook)
+│       │   └── EmailService.kt       # SMTP transactional email (password-reset dispatch)
 │       ├── repository/
 │       │   ├── UserRepository.kt
 │       │   ├── FamilyRepository.kt
@@ -79,9 +81,14 @@ Configure database connection in `src/main/resources/application.yml`:
 
 #### 2.2 Create .env File (for sensitive data)
 ```env
+# Database
 DB_URL=jdbc:mysql://localhost:3306/nakpom_db
-DB_USERNAME=root
+DB_USERNAME=nakpom
 DB_PASSWORD=your_password
+
+# Resend Transactional Email (https://resend.com/api-keys)
+RESEND_API_KEY=re_xxxxxxxxx
+RESEND_FROM_EMAIL=onboarding@resend.dev
 ```
 
 ### Step 3: Create Database Schema Migrations
@@ -265,6 +272,18 @@ Flow:
 - `GET /api/v1/health` endpoint to verify server is running
 - Returns JSON with status, timestamp, service name, and version
 
+#### 12.3 Create EmailService
+- Located in `features/auth/service/EmailService.kt`
+- Uses the **Resend Java SDK** (`com.resend:resend-java:3.1.0`) — no SMTP session or STARTTLS config needed
+- Reads credentials from environment variables: `RESEND_API_KEY`, `RESEND_FROM_EMAIL`
+- `sendResetEmail(recipientEmail, secureToken)` calls `resend.emails().send()` with an HTML reset-link template
+- `requireEnv()` helper throws a clear `IllegalStateException` if `RESEND_API_KEY` is missing
+- **Pre-flight checklist**:
+  - [ ] Create a free developer account on [Resend](https://resend.com) (100 emails/day free tier)
+  - [ ] Generate an API key at resend.com/api-keys
+  - [ ] Replace `RESEND_API_KEY=re_xxxxxxxxx` in `.env` with the real key
+  - [ ] Smoke-test: insert a dummy token into `password_resets` table and call `sendResetEmail()` to confirm delivery in a test mailbox
+
 ---
 
 ## Part C: Documentation & Verification
@@ -395,6 +414,10 @@ Verified result:
 - [x] AuthService: loginUser() with BCrypt verification
 - [x] AuthController: POST /register (201) and POST /login (200)
 - [x] HealthController: GET /health returns 200 OK
+- [x] Resend API key added to `.env` as `RESEND_API_KEY`
+- [x] `com.resend:resend-java:3.1.0` dependency added to `build.gradle.kts`
+- [x] `EmailService.kt` implemented using Resend Java SDK
+- [x] End-to-end email test: dummy token → `sendResetEmail()` → delivery confirmed in test mailbox
 - [x] .gitignore properly excludes sensitive files
 - [x] Git repository initialized and committed
 - [x] Gradle wrapper generated
@@ -405,3 +428,44 @@ Verified result:
 - [x] MySQL database has all 4 tables created
 - [x] Foreign key constraints are working
 - [x] Team members can run the application locally
+
+---
+
+## Deferred to Sprint 2: Password Reset Completion
+
+The email delivery pipeline is complete and verified. However, clicking the **Reset Password** button in the email currently leads nowhere — the backend logic and frontend screen are out of Sprint 1 scope.
+
+### What is built (Sprint 1)
+| Component | Status |
+|---|---|
+| `password_resets` DB table (email, token, expires_at) | ✅ Done |
+| `PasswordResetRepository` | ✅ Done |
+| `EmailService.sendResetEmail()` — sends link with token | ✅ Done |
+| End-to-end smoke test via `EmailSmokeTest` | ✅ Done |
+
+### What is missing (Sprint 2 backlog)
+| Component | Description |
+|---|---|
+| `AuthService.requestPasswordReset(email)` | Generate 6-char secure token, save to `password_resets` with 15-min expiry, call `EmailService.sendResetEmail()` |
+| `AuthService.resetPassword(token, newPassword)` | Validate token exists and not expired → BCrypt-hash new password → UPDATE `users` → DELETE token from `password_resets` |
+| `POST /api/v1/auth/forgot-password` | Accepts `{ email }`, triggers token generation + email dispatch |
+| `POST /api/v1/auth/reset-password` | Accepts `{ token, newPassword }`, validates and applies the password change |
+| Jetpack Compose UI screens | "Forgot Password" entry screen + "Enter New Password" screen (frontend, Sprint 2) |
+
+### Full reset flow (when implemented)
+```
+[User taps "Forgot Password"]
+  → POST /forgot-password { email }
+  → Backend generates token, saves to password_resets, sends email
+
+[User opens email, clicks Reset Password button]
+  → Link: https://nakpom.com/reset-password?token=XXXXXX
+  → App/browser opens "Enter New Password" screen with token pre-filled
+
+[User submits new password]
+  → POST /reset-password { token, newPassword }
+  → Backend validates token + expiry
+  → Updates password_hash in users table
+  → Deletes token from password_resets
+  → Returns 200 OK → app shows "Password changed successfully"
+```

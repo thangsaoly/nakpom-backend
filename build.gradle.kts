@@ -32,6 +32,9 @@ dependencies {
     
     // Password Hashing (BCrypt)
     implementation("org.mindrot:jbcrypt:0.4")
+
+    // Resend Java SDK — transactional email (password reset)
+    implementation("com.resend:resend-java:3.1.0")
     
     // Flyway for migrations
     implementation("org.flywaydb:flyway-core")
