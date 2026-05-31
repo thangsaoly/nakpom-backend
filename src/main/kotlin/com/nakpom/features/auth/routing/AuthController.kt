@@ -1,8 +1,10 @@
 package com.nakpom.features.auth.routing
 
 import com.nakpom.features.auth.models.dto.AuthResponse
+import com.nakpom.features.auth.models.dto.ForgotPasswordRequest
 import com.nakpom.features.auth.models.dto.LoginRequest
 import com.nakpom.features.auth.models.dto.RegisterRequest
+import com.nakpom.features.auth.models.dto.ResetPasswordRequest
 import com.nakpom.features.auth.service.AuthService
 import jakarta.validation.Valid
 import org.springframework.http.HttpStatus
@@ -32,6 +34,38 @@ class AuthController(private val authService: AuthService) {
     @PostMapping("/login")
     fun loginUser(@Valid @RequestBody request: LoginRequest): ResponseEntity<AuthResponse> {
         val response = authService.loginUser(request)
+        return ResponseEntity.ok(response)
+    }
+
+    /**
+     * POST /api/v1/auth/forgot-password
+     *
+     * Accepts an email address and dispatches a password-reset link.
+     * Always returns 200 OK regardless of whether the email is registered
+     * (prevents user enumeration).
+     */
+    @PostMapping("/forgot-password")
+    fun forgotPassword(@Valid @RequestBody request: ForgotPasswordRequest): ResponseEntity<Map<String, Any>> {
+        authService.requestPasswordReset(request.email)
+        val response = mapOf(
+            "message" to "If that email is registered, a reset link has been sent.",
+            "timestamp" to System.currentTimeMillis()
+        )
+        return ResponseEntity.ok(response)
+    }
+
+    /**
+     * POST /api/v1/auth/reset-password
+     *
+     * Accepts a token and new password, validates the token, and updates the user's password.
+     */
+    @PostMapping("/reset-password")
+    fun resetPassword(@Valid @RequestBody request: ResetPasswordRequest): ResponseEntity<Map<String, Any>> {
+        authService.resetPassword(request.token, request.newPassword)
+        val response = mapOf(
+            "message" to "Password has been reset successfully.",
+            "timestamp" to System.currentTimeMillis()
+        )
         return ResponseEntity.ok(response)
     }
 }

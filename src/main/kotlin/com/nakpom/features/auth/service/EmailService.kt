@@ -3,18 +3,26 @@ package com.nakpom.features.auth.service
 import com.resend.Resend
 import com.resend.core.exception.ResendException
 import com.resend.services.emails.model.CreateEmailOptions
+import org.springframework.beans.factory.annotation.Value
+import org.springframework.stereotype.Service
 
 /**
  * Sends transactional password-reset emails using the Resend Java SDK.
  *
- * Required environment variables (in .env):
+ * Required configuration (environment variables or .env imported by Spring):
  *   RESEND_API_KEY      — your Resend secret key (re_xxxx...)
  *   RESEND_FROM_EMAIL   — verified sender address (defaults to Resend sandbox)
  */
-class EmailService {
+@Service
+class EmailService(
+    @Value("\${RESEND_API_KEY}")
+    private val apiKey: String,
 
-    private val apiKey: String = requireEnv("RESEND_API_KEY")
-    private val fromEmail: String = System.getenv("RESEND_FROM_EMAIL") ?: "onboarding@resend.dev"
+    @Value("\${RESEND_FROM_EMAIL:onboarding@resend.dev}")
+    private val fromEmail: String
+) {
+
+    private val resend = Resend(apiKey)
 
     // --------------------------------------------------------------------------
     // Public API
@@ -27,7 +35,6 @@ class EmailService {
      * Throws [RuntimeException] if the Resend API call fails.
      */
     fun sendResetEmail(recipientEmail: String, secureToken: String) {
-        val resend = Resend(apiKey)
         val resetLink = "https://nakpom.com/reset-password?token=$secureToken"
 
         val request = CreateEmailOptions.builder()
@@ -68,8 +75,4 @@ class EmailService {
         </div>
     """.trimIndent()
 
-    private fun requireEnv(key: String): String =
-        System.getenv(key)
-            ?: System.getProperty(key)
-            ?: error("Missing required environment variable: $key. Add it to your .env file.")
 }

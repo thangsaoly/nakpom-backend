@@ -53,6 +53,48 @@ class GlobalExceptionHandler {
     }
 
     /**
+     * Handles invalid or expired password-reset tokens.
+     */
+    @ExceptionHandler(InvalidTokenException::class)
+    fun handleInvalidToken(ex: InvalidTokenException): ResponseEntity<Map<String, Any>> {
+        val response = mapOf(
+            "status" to HttpStatus.BAD_REQUEST.value(),
+            "error" to "Invalid Token",
+            "message" to (ex.message ?: "Password reset token is invalid or has expired"),
+            "timestamp" to System.currentTimeMillis()
+        )
+        return ResponseEntity.badRequest().body(response)
+    }
+
+    /**
+     * Handles resource lookups that return no result (e.g. unknown invite code).
+     */
+    @ExceptionHandler(ResourceNotFoundException::class)
+    fun handleResourceNotFound(ex: ResourceNotFoundException): ResponseEntity<Map<String, Any>> {
+        val response = mapOf(
+            "status" to HttpStatus.NOT_FOUND.value(),
+            "error" to "Not Found",
+            "message" to (ex.message ?: "The requested resource was not found"),
+            "timestamp" to System.currentTimeMillis()
+        )
+        return ResponseEntity.status(HttpStatus.NOT_FOUND).body(response)
+    }
+
+    /**
+     * Handles attempts to join a family the user already belongs to.
+     */
+    @ExceptionHandler(MembershipAlreadyExistsException::class)
+    fun handleMembershipAlreadyExists(ex: MembershipAlreadyExistsException): ResponseEntity<Map<String, Any>> {
+        val response = mapOf(
+            "status" to HttpStatus.CONFLICT.value(),
+            "error" to "Membership Already Exists",
+            "message" to (ex.message ?: "You are already a member of this family"),
+            "timestamp" to System.currentTimeMillis()
+        )
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(response)
+    }
+
+    /**
      * Catch-all handler for unexpected exceptions.
      */
     @ExceptionHandler(Exception::class)

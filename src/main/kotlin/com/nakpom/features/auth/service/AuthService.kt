@@ -2,26 +2,32 @@ package com.nakpom.features.auth.service
 
 import com.nakpom.exception.EmailAlreadyExistsException
 import com.nakpom.exception.InvalidCredentialsException
+import com.nakpom.exception.InvalidTokenException
 import com.nakpom.features.auth.models.Family
 import com.nakpom.features.auth.models.FamilyMembership
+import com.nakpom.features.auth.models.PasswordReset
 import com.nakpom.features.auth.models.User
 import com.nakpom.features.auth.models.dto.AuthResponse
 import com.nakpom.features.auth.models.dto.LoginRequest
 import com.nakpom.features.auth.models.dto.RegisterRequest
 import com.nakpom.features.auth.repository.FamilyMembershipRepository
 import com.nakpom.features.auth.repository.FamilyRepository
+import com.nakpom.features.auth.repository.PasswordResetRepository
 import com.nakpom.features.auth.repository.UserRepository
 import org.mindrot.jbcrypt.BCrypt
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 import java.security.SecureRandom
+import java.time.LocalDateTime
 
 @Service
 class AuthService(
     private val userRepository: UserRepository,
     private val familyRepository: FamilyRepository,
-    private val familyMembershipRepository: FamilyMembershipRepository
+    private val familyMembershipRepository: FamilyMembershipRepository,
+    private val passwordResetRepository: PasswordResetRepository,
+    private val emailService: EmailService
 ) {
     private val logger = LoggerFactory.getLogger(AuthService::class.java)
     private val secureRandom = SecureRandom()
@@ -126,6 +132,74 @@ class AuthService(
             inviteCode = family?.inviteCode,
             message = "Login successful"
         )
+    }
+
+    /**
+     * Step 1 of password reset: validate email exists, generate a token,
+     * save it with a 15-minute expiry, then dispatch the reset email.
+     *
+     * Security note: we return the same generic success message whether or
+     * not the email is registered — this prevents user enumeration attacks.
+     */
+    @Transactional
+    fun requestPasswordReset(email: String) {
+        val normalizedEmail = email.trim().lowercase()
+
+        // Only proceed if the account actually exists
+        if (!userRepository.existsByEmail(normalizedEmail)) {
+            // Intentionally silent: do not reveal whether the email is registered
+            logger.info("Password reset requested for unknown email (suppressed): {}", normalizedEmail)
+            return
+        }
+
+        // Delete any previous tokens for this email so there is only ever one active at a time
+        passwordResetRepository.deleteByEmail(normalizedEmail)
+
+        // Generate a cryptographically secure 32-character hex token
+        val tokenBytes = ByteArray(16)
+        secureRandom.nextBytes(tokenBytes)
+        val token = tokenBytes.joinToString("") { "%02x".format(it) }
+
+        // Save the token with a 15-minute expiry window
+        passwordResetRepository.save(
+            PasswordReset(
+                email = normalizedEmail,
+                token = token,
+                expiresAt = LocalDateTime.now().plusMinutes(15)
+            )
+        )
+        logger.info("Password reset token generated for email={}", normalizedEmail)
+
+        // Dispatch the email with the embedded token link
+        emailService.sendResetEmail(normalizedEmail, token)
+    }
+
+    /**
+     * Step 2 of password reset: validate the token, hash the new password,
+     * update the user's record, then delete the token to prevent re-use.
+     */
+    @Transactional
+    fun resetPassword(token: String, newPassword: String) {
+        // 1. Look up the token
+        val resetRecord = passwordResetRepository.findByToken(token)
+            .orElseThrow { InvalidTokenException() }
+
+        // 2. Check it has not expired
+        if (LocalDateTime.now().isAfter(resetRecord.expiresAt)) {
+            passwordResetRepository.delete(resetRecord) // clean up expired token
+            throw InvalidTokenException()
+        }
+
+        // 3. Find the user and update their password hash
+        val user = userRepository.findByEmail(resetRecord.email)
+            .orElseThrow { InvalidTokenException() } // token points to a deleted user — treat as invalid
+
+        val updatedUser = user.copy(passwordHash = BCrypt.hashpw(newPassword, BCrypt.gensalt(12)))
+        userRepository.save(updatedUser)
+        logger.info("Password reset successful for userId={}", user.userId)
+
+        // 4. Delete the token so it cannot be reused
+        passwordResetRepository.delete(resetRecord)
     }
 
     /**
