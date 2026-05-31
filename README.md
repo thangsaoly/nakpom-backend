@@ -33,7 +33,11 @@ Create a `.env` file in the project root:
 DB_URL=jdbc:mysql://localhost:3306/nakpom_db
 DB_USERNAME=root
 DB_PASSWORD=your_password
+RESEND_API_KEY=re_your_resend_api_key
+RESEND_FROM_EMAIL=onboarding@resend.dev
 ```
+
+Spring loads this file through `spring.config.import` in `application.yml`. Services should read these values through Spring configuration injection, not `System.getenv()`, because `.env` entries imported by Spring are not automatically added to the OS environment.
 
 ### 2. Build
 ```bash
