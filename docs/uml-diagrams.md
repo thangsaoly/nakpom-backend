@@ -1,4 +1,4 @@
-# NakPom Sprint 1 — UML Diagrams
+# NakPom — UML Diagrams (Sprint 1 & Sprint 2)
 
 This document contains the four required UML diagrams for Sprint 1: **Use Case**, **Activity**, **Class**, and **Sequence** diagrams. Each diagram is accompanied by a detailed description explaining the design decisions, actors, and interactions modelled.
 
@@ -511,3 +511,206 @@ The login flow involves fewer database operations:
 **Failure Sequence (4.3)**:
 
 Demonstrates the exception propagation chain. When `EmailAlreadyExistsException` is thrown inside `AuthService`, it propagates up through `AuthController` and is intercepted by the `GlobalExceptionHandler` (annotated with `@RestControllerAdvice`). The handler translates the exception into a structured 409 Conflict JSON response. The same pattern applies to `InvalidCredentialsException` (→ 401) and `MethodArgumentNotValidException` (→ 400).
+
+---
+
+## Sprint 2 Diagrams
+
+### 5. Sequence Diagram — Password Reset Full Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client (Android App)
+    participant AC as AuthController
+    participant AS as AuthService
+    participant PR as PasswordResetRepository
+    participant UR as UserRepository
+    participant ES as EmailService
+    participant GEH as GlobalExceptionHandler
+    participant DB as MySQL
+
+    Note over C,DB: Step 1 — Request Reset Email
+
+    C->>AC: POST /api/v1/auth/forgot-password
+    Note right of C: { "email": "user@example.com" }
+    AC->>AS: requestPasswordReset(email)
+    activate AS
+
+    AS->>UR: existsByEmail(email)
+    UR->>DB: SELECT COUNT(*) FROM users WHERE email = ?
+    DB-->>UR: 1
+    UR-->>AS: true
+
+    AS->>PR: deleteByEmail(email)
+    PR->>DB: DELETE FROM password_resets WHERE email = ?
+    Note right of DB: Clears any previous token
+
+    AS->>AS: SecureRandom → 32-char hex token
+    AS->>PR: save(PasswordReset(email, token, now+15min))
+    PR->>DB: INSERT INTO password_resets (email, token, expires_at)
+    DB-->>PR: id = 1
+
+    AS->>ES: sendResetEmail(email, token)
+    ES->>ES: Build reset link with token
+    ES-->>C: Email dispatched via Resend API
+    deactivate AS
+
+    AC-->>C: HTTP 200 OK
+    Note right of AC: { "message": "If that email is registered..." }
+
+    Note over C,DB: Step 2 — Submit New Password
+
+    C->>AC: POST /api/v1/auth/reset-password
+    Note right of C: { "token": "abc123...", "newPassword": "newPass" }
+    AC->>AS: resetPassword(token, newPassword)
+    activate AS
+
+    AS->>PR: findByToken(token)
+    PR->>DB: SELECT * FROM password_resets WHERE token = ?
+    DB-->>PR: PasswordReset(email, expiresAt)
+    PR-->>AS: PasswordReset record
+
+    AS->>AS: LocalDateTime.now().isAfter(expiresAt)?
+    Note right of AS: false → token is still valid
+
+    AS->>UR: findByEmail(email)
+    UR->>DB: SELECT * FROM users WHERE email = ?
+    DB-->>UR: User record
+    UR-->>AS: User
+
+    AS->>AS: BCrypt.hashpw(newPassword, gensalt(12))
+    AS->>UR: save(user.copy(passwordHash = newHash))
+    UR->>DB: UPDATE users SET password_hash = ? WHERE user_id = ?
+
+    AS->>PR: delete(resetRecord)
+    PR->>DB: DELETE FROM password_resets WHERE id = ?
+    Note right of DB: Token consumed — cannot be reused
+
+    deactivate AS
+    AC-->>C: HTTP 200 OK
+    Note right of AC: { "message": "Password has been reset successfully." }
+```
+
+**Description**:
+
+The password reset flow spans two separate HTTP requests:
+
+1. **`POST /forgot-password`** — The user submits their email. The backend silently skips unknown emails (prevents enumeration), clears any existing token for that address, generates a new 32-character cryptographically random hex token, stores it with a 15-minute expiry, and dispatches the email via Resend. The response is always 200 OK regardless of whether the email is registered.
+
+2. **`POST /reset-password`** — The user submits the token (from the email link) and their new password. The backend looks up the token, validates it is not expired, BCrypt-hashes the new password, updates the `users` table, and immediately deletes the token so it cannot be reused. If the token is missing or expired, `InvalidTokenException` is thrown → 400 Bad Request.
+
+---
+
+### 6. Sequence Diagram — Family Join via Invite Code
+
+```mermaid
+sequenceDiagram
+    autonumber
+    participant C as Client (Android App)
+    participant INT as FamilyMembershipInterceptor
+    participant FC as FamilyController
+    participant FS as FamilyService
+    participant FR as FamilyRepository
+    participant MR as FamilyMembershipRepository
+    participant GEH as GlobalExceptionHandler
+    participant DB as MySQL
+
+    C->>INT: GET /api/v1/family/join?code=NP-AB12CD
+    Note right of C: Header: X-User-Id: 2
+
+    INT->>INT: pathVariables["familyId"]?
+    Note right of INT: No {familyId} in /join → return true (pass through)
+
+    INT->>FC: Request forwarded
+    FC->>FS: joinFamilyByCode(userId=2, code="NP-AB12CD")
+    activate FS
+
+    FS->>FR: findByInviteCode("NP-AB12CD")
+    FR->>DB: SELECT * FROM families WHERE invite_code = ?
+    DB-->>FR: Family(familyId=1, "Krousa Me")
+    FR-->>FS: Family
+
+    FS->>MR: existsByUserIdAndFamilyId(userId=2, familyId=1)
+    MR->>DB: SELECT COUNT(*) FROM family_memberships WHERE user_id=2 AND family_id=1
+    DB-->>MR: 0
+    MR-->>FS: false (not yet a member)
+
+    FS->>MR: save(FamilyMembership(userId=2, familyId=1, role="member"))
+    MR->>DB: INSERT INTO family_memberships (user_id, family_id, role)
+    DB-->>MR: membership_id = 5
+
+    FS-->>FC: JoinFamilyResponse(familyId=1, "Krousa Me", role="member")
+    deactivate FS
+    FC-->>C: HTTP 200 OK + JoinFamilyResponse
+
+    Note over C,DB: If code is wrong → 404. If already a member → 409.
+```
+
+**Description**:
+
+The join flow passes through the `FamilyMembershipInterceptor` first. Since `/join` has no `{familyId}` path variable, the interceptor detects an empty path variable map and passes the request through immediately without any membership check.
+
+`FamilyService.joinFamilyByCode()` then performs two sequential checks:
+1. **Invite code lookup** — `findByInviteCode()` queries the `families` table. If no match, `ResourceNotFoundException` → 404.
+2. **Duplicate guard** — `existsByUserIdAndFamilyId()` checks if the user already has a row in `family_memberships` for that family. If yes, `MembershipAlreadyExistsException` → 409.
+
+Only if both checks pass is a new membership row inserted with `role = "member"`.
+
+---
+
+### 7. Component Diagram — FamilyMembershipInterceptor in the Request Pipeline
+
+```mermaid
+graph LR
+    Client(["Client\n(Android App)"])
+
+    subgraph SpringMVC["Spring MVC Request Pipeline"]
+        Dispatcher["DispatcherServlet"]
+        Interceptor["FamilyMembershipInterceptor\n(preHandle)"]
+        Controller["FamilyController\nor AuthController"]
+    end
+
+    subgraph ServiceLayer["Service Layer"]
+        FamilyService["FamilyService"]
+        AuthService["AuthService"]
+    end
+
+    subgraph DataLayer["Data Layer"]
+        MR["FamilyMembershipRepository\nexistsByUserIdAndFamilyId()"]
+        DB[("MySQL\nnakpom_db")]
+    end
+
+    Client -->|"HTTP Request"| Dispatcher
+    Dispatcher -->|"preHandle()"| Interceptor
+
+    Interceptor -->|"Has {familyId}?\nNO → pass through"| Controller
+    Interceptor -->|"Has {familyId}?\nYES → check membership"| MR
+    MR --> DB
+    DB -->|"isMember = false"| Interceptor
+    Interceptor -->|"403 Forbidden"| Client
+    DB -->|"isMember = true"| Interceptor
+    Interceptor -->|"return true → proceed"| Controller
+
+    Controller --> FamilyService
+    Controller --> AuthService
+    FamilyService --> MR
+
+    style Interceptor fill:#FF6B35,color:#fff,stroke:#CC4400
+    style MR fill:#4CAF50,color:#fff,stroke:#388E3C
+    style DB fill:#2196F3,color:#fff,stroke:#1565C0
+    style Client fill:#9C27B0,color:#fff,stroke:#6A1B9A
+```
+
+**Description**:
+
+The `FamilyMembershipInterceptor` sits between `DispatcherServlet` and the target controller. It implements Spring's `HandlerInterceptor.preHandle()` which runs **before** any controller method executes.
+
+**Decision logic**:
+- If the URL does not contain a `{familyId}` path variable (e.g. `/family/join`): the interceptor returns `true` immediately — the request flows to the controller untouched.
+- If `{familyId}` is present: the interceptor reads `X-User-Id` from the request header and calls `FamilyMembershipRepository.existsByUserIdAndFamilyId()`. This is a single indexed `SELECT COUNT(*)` — one DB round-trip with negligible latency.
+  - Member confirmed → return `true` → controller runs normally.
+  - Not a member → write a 403 JSON response directly to `HttpServletResponse` and return `false` → controller never runs.
+
+This design means **no family data is ever queried for unauthorized users** — the block happens at the earliest possible point in the pipeline.
+
