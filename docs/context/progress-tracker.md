@@ -99,6 +99,8 @@ Sprint 2 Part B — Android Jetpack Compose UI (from sprint2-invite-engine-secur
 
 ## Architecture Decisions
 
+- **Frontend is a separate repository**: The Android Jetpack Compose app lives in its own repo and connects to this backend exclusively via REST API endpoints. No frontend code belongs in `nakpom-backend`.
+
 - **BCrypt with cost factor 12**: Chosen for password hashing to balance security and performance. 2¹² = 4096 iterations.
 - **Invite code format NP-XXXXXX**: 6-character uppercase alphanumeric code provides over 2 billion combinations.
 - **Transactional boundary for registration**: User, family, and membership creation wrapped in single transaction to ensure atomicity.

@@ -135,79 +135,13 @@ class WebConfig(
 
 ---
 
-## Part B: Android Frontend Engineering Tasks (Jetpack Compose)
+## Part B: Android Frontend Engineering Tasks
 
-### Phase 1: App Initialization & Architectural Scaffolding
-
-Initialize the clean development directory footprint within Android Studio.
-
-#### Step 7: Package Setup
-
-Use a feature-by-feature layered design structure mirroring the backend approach:
-
-```
-com.nakpom.android/
-├── core/
-│   ├── theme/        # Color.kt, Type.kt, Theme.kt (Khmer typography metrics)
-│   └── network/      # Ktor/Retrofit client base configs + Error wrappers
-└── features/
-    └── auth/
-        ├── data/         # AuthRepository, API models, remote data sources
-        ├── domain/       # Business validation or login validation scripts
-        └── presentation/ # ViewModels, UI Screen Composables, UI States
-```
-
-#### Step 8: Networking Configuration
-
-- Set up your network engine wrapper (Ktor or Retrofit) pointing to the local backend testing server endpoint.
-- Add a global response deserializer to map incoming JSON payloads directly into Kotlin data classes.
-- Define a base URL constant (`http://<local-ip>:8080/api/v1`) for easy environment switching.
-
-#### Step 9: State Architecture Pattern (MVVM / MVI)
-
-Use Kotlin `MutableStateFlow` inside Android ViewModels to represent the single source of truth for screen operations:
-
-```kotlin
-sealed interface AuthUiState {
-    object Idle : AuthUiState
-    object Loading : AuthUiState
-    data class Success(val user: UserResponse) : AuthUiState
-    data class Error(val message: String) : AuthUiState
-}
-```
-
----
-
-### Phase 2: Building UI Screens (Figma → Composable)
-
-Construct composables focusing on clear visual elements, clean input states, and helpful user feedback layouts.
-
-#### Step 10: Login & Registration Screens
-
-- Standard email and password text fields built with `OutlinedTextField`.
-- Login button displays an active `CircularProgressIndicator` while network requests are executing.
-- Auto-navigation redirects newly authenticated users to their personalized dashboard upon a successful response.
-
-#### Step 11: Forgot Password & New Password Screens (Leftover UI)
-
-##### 11.1 Forgot Password Screen
-- A single `OutlinedTextField` collecting the user's email.
-- Pressing the request button fires a network call to `POST /api/v1/auth/forgot-password`.
-- Displays a clean success banner instructing the user to check their email inbox.
-
-##### 11.2 Enter New Password Screen
-- Receives the secure reset token via navigation arguments (deep link or nav route parameter).
-- Twin `OutlinedTextField` inputs for the new password and confirmation.
-- Submits to `POST /api/v1/auth/reset-password`.
-- Navigates back to Login on success with a confirmation snackbar.
-
-#### Step 12: The "Empty State" Dashboard Layout Scaffold
-
-- **Top App Bar** with a **Workspace Toggle Switcher** widget — allows switching between the active *family circle* view and the *neighborhood community* layout.
-- **"Invite Family" Widget Card** pinned near the top:
-  - On tap → triggers an Android `ModalBottomSheet` displaying:
-    - The **6-character alphanumeric invite code** (generated from Sprint 1 backend).
-    - A prominent **tap-to-copy** action button.
+> **Architecture Decision**: The Android frontend will be developed in a **separate repository** and connect to this backend exclusively through the REST API endpoints defined in Part A.
+>
+> This backend repository (`nakpom-backend`) is API-only. No frontend code lives here.
+>
+> See the Android project repository for Jetpack Compose UI implementation.
 
 ---
 
@@ -293,7 +227,7 @@ Expected: `403 Forbidden` for a user not in that family.
 
 ## Success Criteria
 
-### Backend Track
+### Backend Track (this repository)
 - [ ] `AuthService.requestPasswordReset(email)` — generates secure token, saves with 15-min expiry, dispatches email
 - [ ] `AuthService.resetPassword(token, newPassword)` — validates token, BCrypt-hashes new password, clears token
 - [ ] `POST /api/v1/auth/forgot-password` endpoint wired and validated
@@ -305,11 +239,4 @@ Expected: `403 Forbidden` for a user not in that family.
 - [ ] `ResourceNotFoundException` and `MembershipAlreadyExistsException` added to `GlobalExceptionHandler`
 
 ### Frontend Track
-- [ ] Jetpack Compose project initialized with clean package structure
-- [ ] Network client configured with base URL pointing to local backend
-- [ ] `AuthUiState` sealed interface defined and wired into ViewModel
-- [ ] Login screen built (text fields, loading state, navigation on success)
-- [ ] Registration screen built (text fields, validation, loading state)
-- [ ] Forgot Password screen built (email input, success banner)
-- [ ] Enter New Password screen built (token from nav args, twin password fields)
-- [ ] Dashboard scaffold built (top app bar with workspace switcher, Invite Family card with invite code modal)
+> Implemented in the separate Android repository. Connects to the endpoints above.
